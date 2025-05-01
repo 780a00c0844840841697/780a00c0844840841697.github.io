@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Video Dersler</title>
+    <style>
+        /* Önceki CSS yapısı aynı kaldı */
+        #container { display: flex; gap: 20px; }
+        #instructor-list { width: 250px; }
+        #lessons { flex-grow: 1; }
+        .lesson-btn { display: block; margin: 10px; padding: 10px; width: 80%; }
+        #videoPlayer { width: 640px; height: 360px; margin: 20px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="instructor-list">
+            <h3>Eğitmen Seçin:</h3>
+            <select id="instructorSelect" onchange="loadLessons()"></select>
+        </div>
+        <div id="lessons">
+            <h3>Dersler:</h3>
+            <div id="buttons"></div>
+        </div>
+    </div>
+
+    <video id="videoPlayer" controls></video>
+
+    <script>
+        const instructors = [
+            'Ahmet Atilla Yılmazer.json', 'Mustafa Yağcı.json', 'Ali Saçan.json',
+            'Mustafa Öztürk.json', 'All Star Öğretmeni.json', 'Nagihan Hoca.json',
+            'Altuğ Güneş.json', 'Nurtaç Kozak.json', 'Barış Kapan.json',
+            'Nurten Aydın.json', 'Bayram Meral.json', 'Oktay Duran.json',
+            'Betül Büyükkalaycı.json', 'Onur Soğuk.json', 'Burak Onay.json',
+            'Rabia Nalan Çınar.json', 'Büşra Altınok.json', 'Recep Üstünel.json',
+            'Celal Gündüz.json', 'Rüştü Bayındır.json', 'Deniz Bozkurt.json',
+            'Salih Yıldırır.json', 'Deniz Öngel.json', 'Selim Yüksel.json',
+            'Didar Baskın.json', 'Selma Kalemci.json', 'Enes Avcı.json',
+            'Semih Akpınar.json', 'Enise Özdemir.json', 'Sercan Dural.json',
+            'Erdal Aydemir.json', 'Sinan Aydın.json', 'Erkan Ayrancı.json',
+            'Uzay Aslantürk.json', 'Erkan Tunçer.json', 'Veysel Boynueğri.json',
+            'Eyüp Boncuk.json', 'Yavuz Tuna.json', 'Fatih Demirkaya.json',
+            'Yunus Turan.json', 'Fatih Vural.json', 'Ferda Kurnaz Karagöz.json',
+            'Gri Koç.json', 'Görkem Şahin.json', 'Önay CEPE.json',
+            'Gülhan Şen.json', 'Önay Çepe.json', 'Hale Karataş.json',
+            'Özcan Aykın.json', 'Hilmi Yavuz.json', 'Özer Akgümüş.json',
+            'Kader Altınel.json', 'Özlem Penekli.json', 'Kadir Gümüş.json',
+            'Öznur Saat Yıldırım.json', 'Kanan Kara.json', 'İbrahim Türker.json',
+            'Kemal Coşkun.json', 'İbrahim Ulaş Baldemir.json', 'Kenan Kara.json',
+            'İlhan Aslan.json', 'Mahsum Öztürk.json', 'İlyas Güneş.json',
+            'Mehmet Celal Özyıldız.json', 'İsmail Kocabaş.json', 'Mehmet Dural.json',
+            'İsmail Tolga Aktaş.json', 'Mehmet Durmuş.json', 'Şenol Aydın.json',
+            'Mesut Uğurdoğan.json', 'Şükrü Akkoyun.json', 'Murat Namlı.json'
+        ];
+
+        let currentHls;
+
+        // Sayfa yüklendiğinde eğitmen listesini oluştur
+        window.onload = function() {
+            const select = document.getElementById('instructorSelect');
+            instructors.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.textContent = file.replace('.json', '');
+                select.appendChild(option);
+            });
+        };
+
+        // Önceki loadLessons ve playVideo fonksiyonları aynı kalıyor
+        async function loadLessons() {
+            const instructorFile = document.getElementById('instructorSelect').value;
+            try {
+                const response = await fetch(instructorFile);
+                const lessons = await response.json();
+                
+                const buttonsContainer = document.getElementById('buttons');
+                buttonsContainer.innerHTML = '';
+                
+                lessons.forEach(lesson => {
+                    const button = document.createElement('button');
+                    button.className = 'lesson-btn';
+                    button.textContent = `${lesson.title} (${lesson.duration})`;
+                    button.onclick = () => playVideo(lesson.stream_url);
+                    buttonsContainer.appendChild(button);
+                });
+            } catch (error) {
+                console.error('Dersler yüklenirken hata oluştu:', error);
+                alert('Ders bilgileri alınamadı!');
+            }
+        }
+
+        function playVideo(url) {
+            const videoPlayer = document.getElementById('videoPlayer');
+            
+            if(currentHls) {
+                currentHls.destroy();
+            }
+
+            if(url.includes('.m3u8')) {
+                if(Hls.isSupported()) {
+                    const hls = new Hls();
+                    hls.loadSource(url);
+                    hls.attachMedia(videoPlayer);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        videoPlayer.play();
+                    });
+                    currentHls = hls;
+                }
+            } else {
+                videoPlayer.innerHTML = '';
+                videoPlayer.src = url;
+                videoPlayer.play();
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</body>
+</html>
