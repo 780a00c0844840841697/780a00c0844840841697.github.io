@@ -1,65 +1,72 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Video Dersler</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Ders Platformu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        #videoContainer {
+        .video-container {
             position: sticky;
             top: 0;
+            z-index: 1000;
             background: white;
-            z-index: 100;
-            padding: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding-top: 20px;
         }
         #videoPlayer {
-            width: 100%;
             max-width: 800px;
             height: 450px;
-            margin: 0 auto;
-            display: block;
         }
-        #container { 
-            display: flex; 
-            gap: 20px; 
-            margin: 20px;
+        .lesson-btn {
+            white-space: normal;
+            word-wrap: break-word;
+            text-align: left;
         }
-        #instructor-list { 
-            width: 250px; 
-        }
-        #lessons { 
-            flex-grow: 1; 
-        }
-        .lesson-btn { 
-            display: block; 
-            margin: 10px; 
-            padding: 10px; 
-            width: 80%;
-            cursor: pointer;
-        }
-        select {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 15px;
+        @media (max-width: 768px) {
+            #videoPlayer {
+                height: 300px;
+            }
         }
     </style>
 </head>
-<body>
-    <div id="videoContainer">
-        <video id="videoPlayer" controls></video>
-    </div>
-
-    <div id="container">
-        <div id="instructor-list">
-            <h3>Eğitmen Seçin:</h3>
-            <select id="instructorSelect" onchange="loadLessons()"></select>
-        </div>
-        <div id="lessons">
-            <h3>Dersler:</h3>
-            <div id="buttons"></div>
+<body class="bg-light">
+    <div class="video-container shadow-sm">
+        <div class="container">
+            <div class="row justify-content-center mb-3">
+                <div class="col-md-8">
+                    <select id="qualitySelect" class="form-select mb-2" onchange="changeQuality()"></select>
+                    <video id="videoPlayer" class="w-100" controls></video>
+                </div>
+            </div>
         </div>
     </div>
 
+    <div class="container mt-4">
+        <div class="row g-4">
+            <div class="col-lg-3">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Eğitmen Seçin</h5>
+                    </div>
+                    <div class="card-body">
+                        <select id="instructorSelect" class="form-select" onchange="loadLessons()"></select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-9">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Dersler</h5>
+                    </div>
+                    <div class="card-body" id="buttons"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         const instructors = [
             'Ahmet Atilla Yılmazer.json', 'Mustafa Yağcı.json', 'Ali Saçan.json',
@@ -89,6 +96,7 @@
         ];
 
         let currentHls;
+        let baseStreamUrl = '';
 
         window.onload = function() {
             const select = document.getElementById('instructorSelect');
@@ -105,40 +113,85 @@
             try {
                 const response = await fetch(instructorFile);
                 const lessons = await response.json();
-
                 const buttonsContainer = document.getElementById('buttons');
                 buttonsContainer.innerHTML = '';
 
                 lessons.forEach(lesson => {
                     const button = document.createElement('button');
-                    button.className = 'lesson-btn';
-                    button.textContent = `${lesson.title} (${lesson.duration})`;
-                    button.onclick = () => playVideo(lesson.stream_url);
+                    button.className = 'btn btn-outline-secondary mb-2 lesson-btn w-100';
+                    button.innerHTML = `<strong>${lesson.title}</strong><br>
+                                        <small>${lesson.instructor_name} - ${lesson.duration}</small>`;
+                    button.onclick = () => {
+                        baseStreamUrl = lesson.stream_url;
+                        playVideo(lesson.stream_url);
+                    };
                     buttonsContainer.appendChild(button);
                 });
             } catch (error) {
-                alert('Ders bilgileri alınamadı!');
+                alert('Ders bilgileri yüklenemedi!');
             }
         }
 
-        function playVideo(url) {
+        async function parseM3U8(url) {
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                const lines = text.split('\n');
+                const qualitySelect = document.getElementById('qualitySelect');
+                qualitySelect.innerHTML = '';
+
+                let qualityOptions = [];
+                lines.forEach((line, index) => {
+                    if(line.includes('RESOLUTION=')) {
+                        const resolution = line.match(/RESOLUTION=(\d+x\d+)/)[1];
+                        const label = `${resolution.split('x')[1]}p`;
+                        const chunk = lines[index + 1].trim();
+                        qualityOptions.push({label, chunk});
+                    }
+                });
+
+                qualityOptions.forEach(option => {
+                    const optionElement = document.createElement('option');
+                    optionElement.value = option.chunk;
+                    optionElement.textContent = option.label;
+                    qualitySelect.appendChild(optionElement);
+                });
+
+                return qualityOptions[0]?.chunk;
+            } catch (error) {
+                console.error('M3U8 parse hatası:', error);
+                return url;
+            }
+        }
+
+        async function playVideo(url) {
+            const mainUrl = url.replace('playlist.m3u8', '');
+            const defaultChunk = await parseM3U8(url);
+            loadHLS(mainUrl + (defaultChunk || 'playlist.m3u8'));
+        }
+
+        function changeQuality() {
+            const qualitySelect = document.getElementById('qualitySelect');
+            const selectedChunk = qualitySelect.value;
+            loadHLS(baseStreamUrl.replace('playlist.m3u8', '') + selectedChunk);
+        }
+
+        function loadHLS(url) {
             const videoPlayer = document.getElementById('videoPlayer');
-            videoPlayer.scrollIntoView({ behavior: 'smooth' });
+            videoPlayer.scrollIntoView({behavior: 'smooth'});
 
             if(currentHls) currentHls.destroy();
 
-            if(url.includes('.m3u8') && Hls.isSupported()) {
-                const hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(videoPlayer);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => videoPlayer.play());
-                currentHls = hls;
-            } else {
+            if(Hls.isSupported()) {
+                currentHls = new Hls();
+                currentHls.loadSource(url);
+                currentHls.attachMedia(videoPlayer);
+                currentHls.on(Hls.Events.MANIFEST_PARSED, () => videoPlayer.play());
+            } else if(videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
                 videoPlayer.src = url;
                 videoPlayer.play();
             }
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </body>
 </html>
